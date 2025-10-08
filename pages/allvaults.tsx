@@ -66,6 +66,96 @@ interface TVL {
   tvlPerChain: { [chainId: number]: number };
 }
 
+// Memoized Vault Row Component for better performance
+const VaultRow = React.memo(({ 
+  vault, 
+  showStats, 
+  showAllVaults 
+}: { 
+  vault: VaultData; 
+  showStats: boolean; 
+  showAllVaults: boolean;
+}) => {
+  const shouldShowVault =
+    WHITELIST_VAULTS.map((vaultAddr) =>
+      vaultAddr.toLowerCase()
+    ).includes(vault.vault.toLowerCase()) ||
+    (vault.vaultBalance &&
+      !vault.vaultBalance.isZero());
+
+  if (!shouldShowVault && !showAllVaults) {
+    return null;
+  }
+
+  return (
+    <Link
+      key={vault.vault}
+      href={`/vault?chain=${vault.c}&address=${vault.vault}`}
+      style={{ textDecoration: "none", color: "inherit" }}>
+      <div
+        className={`vault-row ${
+          !showStats ? "vault-row-tvl-hidden" : ""
+        }`}>
+        {/* Vault name and icon */}
+        <div className="vault-cell vault-left-align">
+          <div style={{ display: "flex", alignItems: "center" }}>
+            <IconDisplay name={vault.assetSymbol} />
+            <span style={{ marginLeft: "8px", fontWeight: "500" }}>
+              {vault.name}
+            </span>
+          </div>
+        </div>
+        
+        {/* Deposits */}
+        <div className="vault-cell vault-left-align">
+          {vault.totalSupply}
+        </div>
+        
+        {/* Yield/APR */}
+        <div className="vault-cell vault-yield-tvl">
+          <VaultYieldTooltip
+            vaultAPR={vault.vaultAPR ? parseFloat(vault.vaultAPR) : undefined}
+            apr={vault.apr}
+            total={vault.apr + (vault.vaultAPR ? parseFloat(vault.vaultAPR) : 0)}
+            symbol={(vault as any).incentiveSymbol}
+          />
+        </div>
+        
+        {/* TVL (only show if showStats is true) */}
+        {showStats && (
+          <div className="vault-cell vault-deposits-tvl">
+            {vault.depositsDollarValue}
+          </div>
+        )}
+        
+        {/* Contributed 7d */}
+        <div className="vault-cell vault-deposits-tvl">
+          {parseFloat(vault.contributed7d) > 0 ? (
+            <>
+              <PrizeIcon size={17} />
+              &nbsp;
+              {NumberWithCommas(CropDecimals(vault.contributed7d))}
+            </>
+          ) : null}
+        </div>
+      </div>
+    </Link>
+  );
+}, (prevProps, nextProps) => {
+  // Only re-render if vault data or showStats actually changed
+  return (
+    prevProps.vault.vault === nextProps.vault.vault &&
+    prevProps.showStats === nextProps.showStats &&
+    prevProps.showAllVaults === nextProps.showAllVaults &&
+    prevProps.vault.totalSupply === nextProps.vault.totalSupply &&
+    prevProps.vault.contributed7d === nextProps.vault.contributed7d &&
+    prevProps.vault.apr === nextProps.vault.apr &&
+    prevProps.vault.vaultAPR === nextProps.vault.vaultAPR
+  );
+});
+
+VaultRow.displayName = 'VaultRow';
+
 // const initialChains = [
 //   { chainId: 10, name: "Optimism", active: true, color: "#f1091e" },
 //   { chainId: 8453, name: "Base", active: true, color: "#0d59ff" },
@@ -1220,85 +1310,14 @@ function AllVaults() {
             <TableSkeleton showStats={showStats} rowCount={8} />
           ) : (
             <div className="vault-table-body">
-              <>
-                {rows.map((row: any) => {
-                  prepareRow(row);
-                  const shouldShowVault =
-                    WHITELIST_VAULTS.map((vault) =>
-                      vault.toLowerCase()
-                    ).includes(row.original.vault.toLowerCase()) ||
-                    (row.original.vaultBalance &&
-                      !row.original.vaultBalance.isZero());
-
-                  if (shouldShowVault || showAllVaults) {
-                    return (
-                      <Link
-                        key={row.original.vault}
-                        href={`/vault?chain=${row.original.c}&address=${row.original.vault}`}
-                        style={{ textDecoration: "none", color: "inherit" }}>
-                        <div
-                          className={`vault-row ${
-                            !showStats ? "vault-row-tvl-hidden" : ""
-                          }`}>
-                          {row.cells.map((cell: any, index: number) => {
-                            if (
-                              cell.column.id === "depositsAndTVL" &&
-                              !showStats
-                            ) {
-                              return null;
-                            } else {
-                              return (
-                                <div
-                                  {...cell.getCellProps()}
-                                  data-label={`${cell.column.Header} `}
-                                  key={`${row.original.vault}-${cell.column.id}`}
-                                  className={`vault-cell ${
-                                    cell.column.id === "depositsAndTVL"
-                                      ? "vault-deposits-tvl"
-                                      : cell.column.id === "yieldAndVaultAPR"
-                                      ? "vault-yield-tvl"
-                                      : "vault-left-align"
-                                  }`}>
-                                  {cell.column.id === "contributed7d" ? (
-                                    <>
-                                      {parseFloat(cell.value) > 0 ? (
-                                        <>
-                                          <PrizeIcon size={17} />
-                                          &nbsp;
-                                          {NumberWithCommas(
-                                            CropDecimals(cell.value)
-                                          )}
-                                        </>
-                                      ) : null}
-                                      {index === 0 && (
-                                        <span className="vault-hidden-mobile">
-                                          <FontAwesomeIcon
-                                            icon={faSquareArrowUpRight}
-                                            size="sm"
-                                            style={{
-                                              color: "#1a4160",
-                                              height: "15px",
-                                              paddingLeft: "9px",
-                                            }}
-                                          />
-                                        </span>
-                                      )}
-                                    </>
-                                  ) : (
-                                    <span style={{ width: "100%" }}>
-                                      {cell.render("Cell")}
-                                    </span>
-                                  )}
-                                </div>
-                              );
-                            }
-                          })}
-                        </div>
-                      </Link>
-                    );
-                  }
-                })}
-              </>
+              {filteredVaults.map((vault: VaultData) => (
+                <VaultRow
+                  key={vault.vault}
+                  vault={vault}
+                  showStats={showStats}
+                  showAllVaults={showAllVaults}
+                />
+              ))}
             </div>
           )}
           <br></br>

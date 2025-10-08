@@ -40,7 +40,7 @@ import { VaultRewards } from "../components/vaultRewards";
 import { getGeckoPriceForTokenAddress } from "../utils/tokenPrices";
 import { GetChainName } from "../utils/getChain";
 import { GetAssetPrice } from "../utils/getAssetPrice";
-import Layout from "../pages";
+import Layout from "../components/Layout";
 import Link from "next/link";
 import IconDisplay from "../components/icons";
 import { useOverview } from "../components/contextOverview";
@@ -50,6 +50,7 @@ import { GetChance } from "../utils/getChance";
 import { GetChainIcon } from "../utils/getChain";
 import ChainTag from "../components/chainTag";
 import { optimism } from "viem/chains";
+import VaultSkeleton from "../components/vaultSkeleton";
 import { call } from "viem/actions";
 import DrawCountdown from "../components/drawCountdown";
 import VaultChanceInfo from "../components/vaultChanceInfo";
@@ -167,6 +168,7 @@ const Vault: React.FC<VaultProps> = ({
   // console.log("active vualt address", activeVaultAddress);
   const [vaultData, setVaultData] = useState<VaultData | null>(null);
   const [isInvalidVault, setIsInvalidVault] = useState<boolean>(false);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
   const [buyAmount, setBuyAmount] = useState<string>("");
   const [redeemAmount, setRedeemAmount] = useState<string>("");
   const [seeAddresses, setSeeAddresses] = useState<boolean>(false);
@@ -866,9 +868,12 @@ const Vault: React.FC<VaultProps> = ({
             ? fetchedData
             : prev
         );
+        setIsLoading(false);
+        
       } catch (err) {
         console.error("Error fetching vault data:", err);
         setIsInvalidVault(true);
+        setIsLoading(false);
       }
     }
 
@@ -1088,7 +1093,10 @@ const Vault: React.FC<VaultProps> = ({
             Back to all vaults
           </div>
         </Link>
-        <div className={`vault-view-bubble ${showChanceInfo ? "has-chance" : ""}`}>
+        {isLoading ? (
+          <VaultSkeleton />
+        ) : (
+          <div className={`vault-view-bubble ${showChanceInfo ? "has-chance" : ""}`}>
           <span
             className="hidden-desktop"
             style={{
@@ -1145,6 +1153,7 @@ const Vault: React.FC<VaultProps> = ({
               </div>
               <div className="vault-container">
                 <div className="vault-content">
+                  {/* Show basic vault info immediately when loaded */}
                   {vaultData && vaultData.status === 0 && (
                     <div>
                       <FontAwesomeIcon
@@ -1565,7 +1574,7 @@ const Vault: React.FC<VaultProps> = ({
                               </>
                             ))}
                           
-                          {/* SEE PRIZES button - positioned after connect and deposit/withdraw sections */}
+                          {/* SEE PRIZES button */}
                           {showChanceInfo && (
                             <div className="mobile-chance-trigger" style={{ marginTop: "15px", marginBottom: "20px" }}>
                               <button 
@@ -2223,7 +2232,7 @@ const Vault: React.FC<VaultProps> = ({
                     />
                   </div>
                 )}
-                
+                </div>
 
           <ToastContainer style={{ zIndex: 9999 }} />
           {vaultData && (
@@ -2267,7 +2276,7 @@ const Vault: React.FC<VaultProps> = ({
             </div>
           )}
         </div>
-        </div>
+        )}
         {/* </div> */}
       </center>
     </Layout>
