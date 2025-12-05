@@ -64,13 +64,32 @@ export const OverviewProvider: React.FC<OverviewProviderProps> = ({ children }) 
 
   useEffect(() => {
     const fetchOverview = async () => {
+      const timeoutMs = 2000;
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), timeoutMs);
       try {
-        const overviewFetch = await fetch(`https://poolexplorer.xyz/overview`);
+        const overviewFetch = await fetch(`https://poolexplorer.xyz/overview`, {
+          signal: controller.signal,
+        });
+        if (!overviewFetch.ok) {
+          throw new Error(`HTTP ${overviewFetch.status}`);
+        }
         const overviewReceived = await overviewFetch.json();
         setOverview(overviewReceived);
-      } catch (error) {
-        console.error('Failed to fetch overview:', error);
+      } catch (error: any) {
+        if (error?.name !== 'AbortError') {
+          console.error('Failed to fetch overview:', error);
+        }
+        // Set empty fallback data so app continues to work
+        setOverview({
+          pendingPrize: {},
+          prices: {
+            geckos: {},
+            assets: {},
+          },
+        });
       } finally {
+        clearTimeout(timer);
         setIsLoading(false);
       }
     };

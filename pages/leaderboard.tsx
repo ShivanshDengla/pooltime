@@ -27,10 +27,15 @@ const Leaderboard: React.FC = () => {
     const fetchData = async () => {
       try {
         const response = await fetch(`https://poolexplorer.xyz/prizeleaderboard`);
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
         const data = await response.json();
         setWinners(data); 
       } catch (error) {
         console.error("Error fetching leaderboard:", error);
+        // Set empty array so app continues to work
+        setWinners([]);
       }
     };
 

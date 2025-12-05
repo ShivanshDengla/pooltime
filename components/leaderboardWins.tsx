@@ -152,6 +152,9 @@ console.log("leaderboard wins")
         const fetchPlayer = await fetch(
           "https://poolexplorer.xyz/player-claims?address=" + addressProp
         );
+        if (!fetchPlayer.ok) {
+          throw new Error(`HTTP ${fetchPlayer.status}`);
+        }
         let fetchedPlayer = await fetchPlayer.json();
         // console.log("Raw fetched player data:", fetchedPlayer);
      
@@ -227,6 +230,9 @@ console.log("leaderboard wins")
         setTotalAmountWon(calculateTotalAmountWon(flattenedWins));
       } catch (error) {
         console.error("Error fetching wins:", error);
+        // Set empty wins so app continues to work
+        setWins([]);
+        setTotalAmountWon("0");
       }
     };
   

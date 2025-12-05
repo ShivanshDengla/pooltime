@@ -387,9 +387,11 @@ function AllVaults() {
 
   useEffect(() => {
     const fetchData = async () => {
-      // Only fetch if overview is available
-      if (!overview?.prices) {
-        console.log("Waiting for overview prices...");
+      // If overview is still null, immediately fall back to static data
+      if (overview === null) {
+        setAllVaults(vaultsAPIFormatted as any);
+        setFilteredVaults(vaultsAPIFormatted as any);
+        setIsDataLoading(false);
         return;
       }
 
@@ -403,12 +405,16 @@ function AllVaults() {
         try {
           // Fetch vaults only (prices come from context)
           vaultsResponse = await fetch(`https://poolexplorer.xyz/vaults`);
+          if (!vaultsResponse.ok) {
+            throw new Error(`HTTP ${vaultsResponse.status}`);
+          }
         } catch (error) {
           console.error("Error during API fetch:", error);
+          vaultsResponse = null; // Ensure it's null on error
         }
 
-        // Use prices from context overview
-        prices = overview.prices;
+        // Use prices from context overview, or empty object as fallback
+        prices = overview?.prices || { geckos: {}, assets: {} };
         const geckoPrices: any = prices.geckos;
         const assetPrices: any = prices.assets;
         // Handle `vaultsResponse` response
@@ -427,336 +433,303 @@ function AllVaults() {
             }. Using static data.`
           );
         }
-        if (true) {
-          const tvlApiValues = vaults.reduce((acc: any, vault: any) => {
-            acc[vault.vault] = parseFloat(vault.tvl);
-            return acc;
-          }, {});
+        
+        // Always process vaults, even if API or multicall fails
+        const tvlApiValues = vaults.reduce((acc: any, vault: any) => {
+          acc[vault.vault] = parseFloat(vault.tvl || "0");
+          return acc;
+        }, {});
 
-          // Extract vault addresses
-          const vaultAddresses = vaults.map((vault: any) => vault.vault);
-          // console.log("vault addresses", vaultAddresses);
-          const [promotionsResult, multicallResults] = await Promise.allSettled(
-            [
-              GetActivePromotionsForVaults(
-                vaultAddresses,
-                true,
-                prices,
-                false,
-                ""
-              ),
-              Promise.all(
-                groupVaultsByChain(vaults).map(
-                  async ({
-                    chainId,
-                    vaults: chainVaults,
-                  }: {
-                    chainId: number;
-                    vaults: VaultData[];
-                  }) => {
-                    const chainName = GetChainName(Number(chainId));
+        // Extract vault addresses
+        const vaultAddresses = vaults.map((vault: any) => vault.vault);
 
-                    const multicallArray = chainVaults.map(
-                      (vault: VaultData) => {
-                        // const contract = new ethers.Contract(
-                        //   vault.vault,
-                        //   ABI.VAULT,
-                        //   PROVIDERS[chainName]
-                        // );
-                        const twabController = new ethers.Contract(
-                          ADDRESS[chainName].TWABCONTROLLER,
-                          ABI.TWABCONTROLLER,
-                          PROVIDERS[chainName]
-                        );
-                        return twabController.totalSupplyDelegateBalance(
-                          vault.vault
-                        );
-                      }
-                    );
+        const [promotionsResult, multicallResults] = await Promise.allSettled([
+          GetActivePromotionsForVaults(
+            vaultAddresses,
+            true,
+            prices,
+            false,
+            ""
+          ),
+          Promise.all(
+            groupVaultsByChain(vaults).map(
+              async ({
+                chainId,
+                vaults: chainVaults,
+              }: {
+                chainId: number;
+                vaults: VaultData[];
+              }) => {
+                const chainName = GetChainName(Number(chainId));
+                const multicallArray = chainVaults.map((vault: VaultData) => {
+                  const twabController = new ethers.Contract(
+                    ADDRESS[chainName].TWABCONTROLLER,
+                    ABI.TWABCONTROLLER,
+                    PROVIDERS[chainName]
+                  );
+                  return twabController.totalSupplyDelegateBalance(vault.vault);
+                });
 
-                    const totalSupplies = await Multicall(
-                      multicallArray,
-                      chainName
-                    );
+                const totalSupplies = await Multicall(
+                  multicallArray,
+                  chainName
+                );
 
-                    return { chainId, totalSupplies, chainVaults };
-                  }
-                )
-              ),
-            ]
+                return { chainId, totalSupplies, chainVaults };
+              }
+            )
+          ),
+        ]);
+
+        let activePromotions = [] as any;
+        if (promotionsResult.status === "fulfilled") {
+          activePromotions = promotionsResult.value;
+        } else {
+          console.error(
+            "Failed to fetch active promotions:",
+            promotionsResult.reason
           );
+        }
 
-          let activePromotions = [] as any;
-          if (promotionsResult.status === "fulfilled") {
-            activePromotions = promotionsResult.value;
-          } else {
-            console.error(
-              "Failed to fetch active promotions:",
-              promotionsResult.reason
-            );
-          }
+        // Map active promotions back onto the corresponding vaults
+        vaults = vaults.map((vault: any) => {
+          const vaultAddress = vault.vault.toLowerCase();
+          return {
+            ...vault,
+            activePromotions: activePromotions[vaultAddress] || [],
+          };
+        });
 
-          // Map active promotions back onto the corresponding vaults
-          vaults = vaults.map((vault: any) => {
-            const vaultAddress = vault.vault.toLowerCase();
-            return {
-              ...vault,
-              activePromotions: activePromotions[vaultAddress] || [],
-            };
-          });
-          // console.log("multicall results", multicallResults);
-          const allResults =
-            multicallResults.status === "fulfilled"
-              ? multicallResults.value
-              : [];
+        const allResults =
+          multicallResults.status === "fulfilled"
+            ? multicallResults.value
+            : [];
 
-          const flattenedVaults = allResults.flatMap(
+        // If multicall fails, use vaults as-is with default values
+        let flattenedVaults: any[] = [];
+        if (allResults.length > 0) {
+          flattenedVaults = allResults.flatMap(
             ({ chainVaults, totalSupplies }: any) =>
               chainVaults.map((vault: VaultData, index: number) => {
                 const totalSupplyDelegate = ethers.BigNumber.from(
-                  totalSupplies[index]
+                  totalSupplies[index] || "0"
                 );
 
-                // Convert scientific notation to string (e.g., "4.352277561912243e+21" to "4352277561912243000000")
                 const tvlFromApiString =
                   tvlApiValues[vault.vault]?.toString() || "0";
                 const tvlFromApi = ethers.BigNumber.from(
                   parseFloat(tvlFromApiString).toLocaleString("fullwide", {
                     useGrouping: false,
-                  }) // Convert to string without grouping
+                  }) || "0"
                 );
 
-                // Compare the API TVL with totalSupplyDelegateBalance using BigNumber's gt() method
                 const totalSupplyValue = totalSupplyDelegate.gt(tvlFromApi)
                   ? totalSupplyDelegate
                   : tvlFromApi;
 
                 return {
                   ...vault,
-                  totalSupply: totalSupplyValue, // This is used for TVL display
-                  totalSupplyDelegate, // This is used for yield/APR calculations
+                  totalSupply: totalSupplyValue,
+                  totalSupplyDelegate,
                 };
               })
           );
-
-          // Enrich vaults with totalSupplies and other calculations
-          const enrichedVaults = flattenedVaults.map((vault) => {
-            const chainName = GetChainName(vault.c);
-            const totalSupplyDelegateValue = ethers.utils.formatUnits(
-              vault.totalSupplyDelegate,
-              vault.decimals
-            );
-            const totalSupplyValue = ethers.utils.formatUnits(
-              vault.totalSupply,
-              vault.decimals
-            );
-
-            const contributed7d = parseFloat(vault.contributed7d);
-            const contributed24h = parseFloat(vault.contributed24h);
-            const contributed28d = parseFloat(vault.contributed28d);
-
-            // Calculate Prize APR here
-            let prizeTokenPriceValue = 0;
-            if (
-              ADDRESS[chainName] &&
-              ADDRESS[chainName].PRIZETOKEN &&
-              ADDRESS[chainName].PRIZETOKEN.GECKO
-            ) {
-              prizeTokenPriceValue = parseFloat(
-                geckoPrices[ADDRESS[chainName].PRIZETOKEN.GECKO]?.toString() ||
-                  "0"
-              );
-            }
-
-            let dollarValue = null;
-            let ethValue = null;
-            let assetPrice: any;
-            if (
-              assetPrices[chainName] &&
-              assetPrices[chainName][vault.asset.toLowerCase()]
-            ) {
-              assetPrice = assetPrices[chainName][vault.asset.toLowerCase()];
-            } else {
-              assetPrice = 0;
-              // console.log(assetPrices);
-              // console.error(
-              //   "Asset not found for chain:",
-              //   chainName,
-              //   "Asset:",
-              //   vault.asset.toLowerCase()
-              // );
-            }
-            // const assetPrice = assetPrices[chainName][vault.asset.toLowerCase()];
-            if (assetPrice > 0) {
-              dollarValue = parseFloat(totalSupplyValue) * assetPrice;
-              ethValue = dollarValue / geckoPrices["ethereum"];
-            } else {
-              dollarValue = 0;
-              ethValue = 0;
-            }
-
-            let delegateDollarValue = null;
-            let delegateEthValue = null;
-            if (assetPrice > 0) {
-              delegateDollarValue =
-                parseFloat(totalSupplyDelegateValue) * assetPrice;
-              delegateEthValue = delegateDollarValue / geckoPrices["ethereum"];
-            }
-
-            let vaultAPR = null;
-            let won7d = null;
-
-            if (
-              dollarValue &&
-              delegateDollarValue &&
-              prizeTokenPriceValue > 0
-            ) {
-              const depositsDollarValue = parseFloat(
-                dollarValue.toString().replace("$", "")
-              );
-
-              const depositsDelegateDollarvalue = parseFloat(
-                delegateDollarValue.toString().replace("$", "")
-              );
-
-              const effectiveContribution =
-                contributed7d === 0 && contributed24h === 0
-                  ? contributed28d / 4 // Fallback to 28d / 4 if both 7d and 24h contributions are 0
-                  : contributed7d === 0
-                  ? contributed24h * 7 // Use 24h contribution annualized
-                  : contributed24h > contributed7d / 3
-                  ? contributed24h * 7 // Use 24h contribution if it's significantly higher than 7d
-                  : contributed7d; // Otherwise, use the 7d contribution
-
-              // console.log(
-              //   "vault",
-              //   vault.vault,
-              //   "effective contribution",
-              //   effectiveContribution,
-              //   "prize token price",
-              //   prizeTokenPriceValue,
-              //   "deposits delegeate dollar value",
-              //   depositsDelegateDollarvalue
-              // );
-              if (depositsDollarValue > 0 && effectiveContribution > 0) {
-                const calculatedAPR =
-                  (((365 / 7) * effectiveContribution * prizeTokenPriceValue) /
-                    depositsDelegateDollarvalue) *
-                  100;
-
-                // Only set vaultAPR if it's a finite number and not too large
-                vaultAPR =
-                  isFinite(calculatedAPR) && calculatedAPR < 1000000
-                    ? calculatedAPR.toFixed(2)
-                    : null;
-              }
-            }
-            won7d = vault.won7d;
-
-            const vaultPromotions =
-              activePromotions[vault.vault.toLowerCase()] || [];
-
-            let whitelistedPromotions;
-            const whitelistedTokens = Object.values(WHITELIST_REWARDS)
-              .flat()
-              .map((tokenObj) => tokenObj.TOKEN.toLowerCase());
-
-            whitelistedPromotions = vaultPromotions.filter((promo: any) =>
-              whitelistedTokens.includes(promo.token.toLowerCase())
-            );
-
-            type TokenSymbolMap = {
-              [key: string]: string;
-            };
-            const tokenSymbolMap: TokenSymbolMap = Object.values(
-              WHITELIST_REWARDS
-            )
-              .flat()
-              .reduce(
-                (
-                  acc: TokenSymbolMap,
-                  tokenObj: { TOKEN: string; SYMBOL: string }
-                ) => {
-                  acc[tokenObj.TOKEN.toLowerCase()] = tokenObj.SYMBOL;
-                  return acc;
-                },
-                {}
-              );
-            let promoTokenSymbol;
-            const apr = whitelistedPromotions.reduce((acc: any, promo: any) => {
-              const tokensPerSecond = parseFloat(promo.tokensPerSecond);
-              const promoTokenPrice = parseFloat(promo.price);
-              promoTokenSymbol = tokenSymbolMap[promo.token.toLowerCase()];
-
-              const aprForPromo =
-                (tokensPerSecond * secondsInAYear * promoTokenPrice) /
-                Math.pow(10, promo.tokenDecimals) /
-                (parseFloat(totalSupplyDelegateValue) * parseFloat(assetPrice));
-              return acc + aprForPromo;
-            }, 0);
-
-            return {
-              ...vault,
-              activePromotions: vaultPromotions,
-              apr: apr || 0,
-              totalSupply:
-                parseFloat(totalSupplyValue) > 0 ? (
-                  <>
-                    <IconDisplay name={vault.assetSymbol} />
-                    &nbsp;{NumberWithCommas(CropDecimals(totalSupplyValue))}
-                  </>
-                ) : (
-                  ""
-                ),
-              depositsDollarValue:
-                dollarValue && dollarValue > 0
-                  ? "$" + NumberWithCommas(CropDecimals(dollarValue))
-                  : null,
-              depositsEthValue: ethValue
-                ? Math.round(ethValue * 1e18).toString()
-                : "0",
-              depositsEthBigInt: Math.round(
-                parseFloat(
-                  ethValue ? Math.round(ethValue * 1e18).toString() : "0"
-                )
-              ),
-
-              contributed7d,
-              contributed24h,
-              won7d,
-              vaultAPR,
-              incentiveSymbol: promoTokenSymbol,
-            };
-          });
-          // console.log("enriched vaults", enrichedVaults);
-          vaults = sortData(enrichedVaults, geckoPrices, assetPrices);
-
-          setData((prevData) => {
-            const newData = vaults;
-            if (JSON.stringify(newData) !== JSON.stringify(prevData)) {
-              setAllVaults(vaults); // Set the full vault data
-              setFilteredVaults(vaults); //
-              const tvlData = calculateTotalAndPerChainTVL(newData);
-              setTvl(tvlData as TVL);
-              if (isVaultsLoaded === 0) {
-                setIsVaultsLoaded(1);
-              } else {
-                setIsVaultsLoaded(2);
-              }
-              return newData;
-            }
-            return prevData;
-          });
-          setIsDataLoading(false);
+        } else {
+          flattenedVaults = vaults.map((vault: VaultData) => ({
+            ...vault,
+            totalSupply: ethers.BigNumber.from("0"),
+            totalSupplyDelegate: ethers.BigNumber.from("0"),
+          }));
         }
+
+        const enrichedVaults = flattenedVaults.map((vault) => {
+          const chainName = GetChainName(vault.c);
+          const totalSupplyDelegateValue = ethers.utils.formatUnits(
+            vault.totalSupplyDelegate,
+            vault.decimals
+          );
+          const totalSupplyValue = ethers.utils.formatUnits(
+            vault.totalSupply,
+            vault.decimals
+          );
+
+          const contributed7d = parseFloat(vault.contributed7d);
+          const contributed24h = parseFloat(vault.contributed24h);
+          const contributed28d = parseFloat(vault.contributed28d);
+
+          let prizeTokenPriceValue = 0;
+          if (
+            ADDRESS[chainName] &&
+            ADDRESS[chainName].PRIZETOKEN &&
+            ADDRESS[chainName].PRIZETOKEN.GECKO
+          ) {
+            prizeTokenPriceValue = parseFloat(
+              geckoPrices[ADDRESS[chainName].PRIZETOKEN.GECKO]?.toString() ||
+                "0"
+            );
+          }
+
+          let dollarValue = 0;
+          let ethValue = 0;
+          let assetPrice: any = 0;
+          if (
+            assetPrices[chainName] &&
+            assetPrices[chainName][vault.asset.toLowerCase()]
+          ) {
+            assetPrice = assetPrices[chainName][vault.asset.toLowerCase()];
+          }
+
+          if (assetPrice > 0) {
+            dollarValue = parseFloat(totalSupplyValue) * assetPrice;
+            ethValue = dollarValue / (geckoPrices["ethereum"] || 1);
+          }
+
+          let delegateDollarValue = null;
+          let delegateEthValue = null;
+          if (assetPrice > 0) {
+            delegateDollarValue = parseFloat(totalSupplyDelegateValue) * assetPrice;
+            delegateEthValue = delegateDollarValue / (geckoPrices["ethereum"] || 1);
+          }
+
+          let vaultAPR = null;
+          let won7d = vault.won7d;
+
+          if (
+            dollarValue &&
+            delegateDollarValue &&
+            prizeTokenPriceValue > 0
+          ) {
+            const depositsDollarValue = parseFloat(
+              dollarValue.toString().replace("$", "")
+            );
+
+            const depositsDelegateDollarvalue = parseFloat(
+              delegateDollarValue.toString().replace("$", "")
+            );
+
+            const effectiveContribution =
+              contributed7d === 0 && contributed24h === 0
+                ? contributed28d / 4
+                : contributed7d === 0
+                ? contributed24h * 7
+                : contributed24h > contributed7d / 3
+                ? contributed24h * 7
+                : contributed7d;
+
+            if (depositsDollarValue > 0 && effectiveContribution > 0) {
+              const calculatedAPR =
+                (((365 / 7) * effectiveContribution * prizeTokenPriceValue) /
+                  depositsDelegateDollarvalue) *
+                100;
+
+              vaultAPR =
+                isFinite(calculatedAPR) && calculatedAPR < 1000000
+                  ? calculatedAPR.toFixed(2)
+                  : null;
+            }
+          }
+
+          const vaultPromotions =
+            activePromotions[vault.vault.toLowerCase()] || [];
+
+          const whitelistedTokens = Object.values(WHITELIST_REWARDS)
+            .flat()
+            .map((tokenObj) => tokenObj.TOKEN.toLowerCase());
+
+          const whitelistedPromotions = vaultPromotions.filter((promo: any) =>
+            whitelistedTokens.includes(promo.token.toLowerCase())
+          );
+
+          type TokenSymbolMap = {
+            [key: string]: string;
+          };
+          const tokenSymbolMap: TokenSymbolMap = Object.values(WHITELIST_REWARDS)
+            .flat()
+            .reduce(
+              (acc: TokenSymbolMap, tokenObj: { TOKEN: string; SYMBOL: string }) => {
+                acc[tokenObj.TOKEN.toLowerCase()] = tokenObj.SYMBOL;
+                return acc;
+              },
+              {}
+            );
+
+          let promoTokenSymbol;
+          const apr = whitelistedPromotions.reduce((acc: any, promo: any) => {
+            const tokensPerSecond = parseFloat(promo.tokensPerSecond);
+            const promoTokenPrice = parseFloat(promo.price);
+            promoTokenSymbol = tokenSymbolMap[promo.token.toLowerCase()];
+
+            const aprForPromo =
+              (tokensPerSecond * secondsInAYear * promoTokenPrice) /
+              Math.pow(10, promo.tokenDecimals) /
+              (parseFloat(totalSupplyDelegateValue) * parseFloat(assetPrice));
+            return acc + aprForPromo;
+          }, 0);
+
+          return {
+            ...vault,
+            activePromotions: vaultPromotions,
+            apr: apr || 0,
+            totalSupply:
+              parseFloat(totalSupplyValue) > 0 ? (
+                <>
+                  <IconDisplay name={vault.assetSymbol} />
+                  &nbsp;{NumberWithCommas(CropDecimals(totalSupplyValue))}
+                </>
+              ) : (
+                ""
+              ),
+            depositsDollarValue:
+              dollarValue && dollarValue > 0
+                ? "$" + NumberWithCommas(CropDecimals(dollarValue))
+                : null,
+            depositsEthValue: ethValue
+              ? Math.round(ethValue * 1e18).toString()
+              : "0",
+            depositsEthBigInt: Math.round(
+              parseFloat(
+                ethValue ? Math.round(ethValue * 1e18).toString() : "0"
+              )
+            ),
+            contributed7d,
+            contributed24h,
+            won7d,
+            vaultAPR,
+            incentiveSymbol: promoTokenSymbol,
+          };
+        });
+
+        vaults = sortData(enrichedVaults, geckoPrices, assetPrices);
+
+        setData((prevData) => {
+          const newData = vaults;
+          if (JSON.stringify(newData) !== JSON.stringify(prevData)) {
+            setAllVaults(vaults);
+            setFilteredVaults(vaults);
+            const tvlData = calculateTotalAndPerChainTVL(newData);
+            setTvl(tvlData as TVL);
+            if (isVaultsLoaded === 0) {
+              setIsVaultsLoaded(1);
+            } else {
+              setIsVaultsLoaded(2);
+            }
+            return newData;
+          }
+          return prevData;
+        });
+        setIsDataLoading(false);
       } catch (error) {
         console.error("Error fetching data:", error);
+        // On error, still show static vaults so users can deposit
+        const staticVaults = vaultsAPIFormatted as any;
+        setAllVaults(staticVaults);
+        setFilteredVaults(staticVaults);
         setIsDataLoading(false);
       }
     };
 
     fetchData();
-  }, [overview?.prices]);
+  }, [overview]);
 
   useEffect(() => {
     const filtered = filterVaultsByChainAndSearch(
@@ -798,20 +771,22 @@ function AllVaults() {
       const flattenedVaults = allBalanceResults.flatMap(
         ({ balances, chainVaults }) =>
           chainVaults.map((vault) => {
-            const balance = balances[vault.vault.toLowerCase()];
+            const balance =
+              balances[vault.vault.toLowerCase()] || {
+                tokenBalance: "0",
+                vaultBalance: "0",
+              };
             const formattedAssetBalance = balance.tokenBalance
               ? ethers.utils.formatUnits(balance.tokenBalance, vault.decimals)
               : "0";
-            const numericAssetBalance = parseFloat(formattedAssetBalance);
-
             const formattedVaultBalance = balance.vaultBalance
               ? ethers.utils.formatUnits(balance.vaultBalance, vault.decimals)
               : "0";
-            const numericVaultBalance = parseFloat(formattedVaultBalance);
+
             return {
               ...vault,
-              assetBalance: balance ? balance.tokenBalance : null, // Add token balance
-              vaultBalance: balance ? balance.vaultBalance : null, // Add vault balance
+              assetBalance: balance.tokenBalance,
+              vaultBalance: balance.vaultBalance,
               formattedAssetBalance,
               formattedVaultBalance,
             };

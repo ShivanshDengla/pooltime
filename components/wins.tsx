@@ -164,10 +164,16 @@ const {overview} = useOverview()
   };
   useEffect(() => {
     const fetchWins = async () => {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 1200);
       try {
         const fetchPlayer = await fetch(
-          "https://poolexplorer.xyz/player-claims?address=" + addressProp
+          "https://poolexplorer.xyz/player-claims?address=" + addressProp,
+          { signal: controller.signal }
         );
+        if (!fetchPlayer.ok) {
+          throw new Error(`HTTP ${fetchPlayer.status}`);
+        }
         let fetchedPlayer = await fetchPlayer.json();
         // console.log("Raw fetched player data:", fetchedPlayer);
      
@@ -243,8 +249,15 @@ const {overview} = useOverview()
         // console.log(overview?.prices?.geckos)
         if (overview?.prices?.geckos) {
           setTotalAmountWon(calculateTotalAmountWon(flattenedWins, overview));
-        }      } catch (error) {
-        console.error("Error fetching wins:", error);
+        }
+      } catch (error: any) {
+        if (error?.name !== "AbortError") {
+          console.error("Error fetching wins:", error);
+        }
+        setWins([]);
+        setTotalAmountWon("0");
+      } finally {
+        clearTimeout(timer);
       }
     };
   

@@ -77,10 +77,15 @@ const Contributions: React.FC = () => {
     const fetchVaults = async () => {
       try {
         const response = await fetch("https://poolexplorer.xyz/vaults");
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
         const data: Vault[] = await response.json();
         setVaults(data);
       } catch (error) {
         console.error("Error fetching vault data:", error);
+        // Set empty array so app continues to work
+        setVaults([]);
       }
     };
 

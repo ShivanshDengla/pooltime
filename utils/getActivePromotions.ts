@@ -3,19 +3,21 @@
 // import { useOverview } from "../components/contextOverview";
 
 async function fetchPromotions(meta:boolean): Promise<any> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 1200);
   try {
-    const fetchUrl = meta? "https://poolexplorer.xyz/metatwabrewards":"https://poolexplorer.xyz/twabrewards";
-    const response = await fetch(fetchUrl);
+    const fetchUrl = meta ? "https://poolexplorer.xyz/metatwabrewards" : "https://poolexplorer.xyz/twabrewards";
+    const response = await fetch(fetchUrl, { signal: controller.signal });
 
     if (!response.ok) {
       throw new Error("failed to fetch twab rewards from api");
     }
     const result = await response.json();
-    // console.log("OK result",result)
     return result;
   } catch (e) {
-    console.log(e);
     return [];
+  } finally {
+    clearTimeout(timer);
   }
 }
 

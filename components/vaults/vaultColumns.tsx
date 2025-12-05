@@ -136,11 +136,16 @@ export const getVaultColumns = (showStats: boolean): Column<VaultData>[] => [
   {
     Header: <div style={{ margin: "0px 0px 0px 30px" }}>Your Tokens</div>,
     id: "tokens",
-    accessor: "apr",
-    Cell: ({ row }) => {
+    accessor: (row: any) => {
+      const vb = row.vaultBalance;
+      const hasBalance =
+        vb && typeof vb.gt === "function" ? vb.gt(0) : false;
+      return hasBalance ? parseFloat(row.formattedVaultBalance || "0") : 0;
+    },
+    Cell: ({ row }: { row: any }) => {
       const { assetBalance, decimals, assetSymbol, status, formattedAssetBalance } = row.original;
       const assetBalanceDisplay =
-        assetBalance && assetBalance.gt(0) && status !== 1 ? (
+        assetBalance && typeof assetBalance.gt === "function" && assetBalance.gt(0) && status !== 1 ? (
           <div className="token-container-outer">
             <span className="hidden-mobile">
               <div className="token-container">

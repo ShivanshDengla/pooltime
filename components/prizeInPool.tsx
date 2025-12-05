@@ -47,21 +47,32 @@ const PrizeInPool: React.FC = () => {
 
   useEffect(() => {
     const fetchPrizes = async () => {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 1200);
       try {
-        const response = await fetch("https://poolexplorer.xyz/overview");
+        const response = await fetch("https://poolexplorer.xyz/overview", {
+          signal: controller.signal,
+        });
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
         const data = await response.json();
-        // console.log("prize data", data);
         const prizeData: PrizeData = data.pendingPrize;
 
-        // Calculate total prize in Ether
         const total = Object.values(prizeData).reduce((acc, prize) => {
           return acc + parseFloat(prize.prizes.prizePoolPrizeBalance)
         }, 0);
 
         setPrizes(prizeData);
         setTotalPrize(total);
-      } catch (error) {
-        console.error("Error fetching prize data:", error);
+      } catch (error: any) {
+        if (error?.name !== "AbortError") {
+          console.error("Error fetching prize data:", error);
+        }
+        setPrizes({});
+        setTotalPrize(0);
+      } finally {
+        clearTimeout(timer);
       }
     };
 

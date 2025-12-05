@@ -126,13 +126,24 @@ const WinsListModal: React.FC<WinsModalProps> = ({
   const { overview } = useOverview();
   useEffect(() => {
     const fetchVaults = async () => {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 1200);
       try {
-        const response = await fetch("https://poolexplorer.xyz/vaults");
+        const response = await fetch("https://poolexplorer.xyz/vaults", {
+          signal: controller.signal,
+        });
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
         const data = await response.json();
         setVaults(data);
-        setTimeout(() => setLoading(false), 400);
-      } catch (error) {
-        console.error("Error fetching vault data:", error);
+      } catch (error: any) {
+        if (error?.name !== "AbortError") {
+          console.error("Error fetching vault data:", error);
+        }
+        setVaults([]);
+      } finally {
+        clearTimeout(timer);
         setTimeout(() => setLoading(false), 400);
       }
     };
