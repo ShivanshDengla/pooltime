@@ -179,7 +179,8 @@ function AllVaults() {
     }
     return false;
   });
-  const [data, setData] = useState<VaultData[]>([]);
+  const initialVaults = vaultsAPIFormatted as any;
+  const [data, setData] = useState<VaultData[]>(initialVaults);
   const [searchInput, setSearchInput] = useState(() => {
     // Initialize from sessionStorage if available
     if (typeof window !== 'undefined') {
@@ -190,8 +191,8 @@ function AllVaults() {
   // const [poolPrice, setPoolPrice] = useState("");
   const [isLoading, setIsLoading] = useState(false); // Start with false to show UI immediately
   const [tvl, setTvl] = useState<TVL | null>(null);
-  const [allVaults, setAllVaults] = useState<VaultData[]>([]);
-  const [filteredVaults, setFilteredVaults] = useState<VaultData[]>([]);
+  const [allVaults, setAllVaults] = useState<VaultData[]>(initialVaults);
+  const [filteredVaults, setFilteredVaults] = useState<VaultData[]>(initialVaults);
   const [chains, setChains] = useState(initialChains);
   const [showAllVaults, setShowAllVaults] = useState(false);
   const [isVaultsLoaded, setIsVaultsLoaded] = useState(0);
@@ -818,7 +819,7 @@ function AllVaults() {
 
       // Apply filtering after updating all vaults
       const filtered = filterVaultsByChainAndSearch(
-        sortedVaults,
+      sortedVaults || allVaults,
         chains,
         searchInput
       );
