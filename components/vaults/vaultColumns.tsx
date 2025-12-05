@@ -45,6 +45,13 @@ type VaultData = {
   numericVaultBalance?: number;
   depositsEthBigInt: number;
 };
+
+const safeGt = (val: any) => {
+  if (!val) return false;
+  if (typeof val.gt === "function") return val.gt(0);
+  const n = Number(val);
+  return Number.isFinite(n) && n > 0;
+};
 const VaultYieldTooltip: React.FC<YieldTooltipProps> = ({
   vaultAPR,
   apr,
@@ -138,14 +145,13 @@ export const getVaultColumns = (showStats: boolean): Column<VaultData>[] => [
     id: "tokens",
     accessor: (row: any) => {
       const vb = row.vaultBalance;
-      const hasBalance =
-        vb && typeof vb.gt === "function" ? vb.gt(0) : false;
+      const hasBalance = safeGt(vb);
       return hasBalance ? parseFloat(row.formattedVaultBalance || "0") : 0;
     },
     Cell: ({ row }: { row: any }) => {
       const { assetBalance, decimals, assetSymbol, status, formattedAssetBalance } = row.original;
       const assetBalanceDisplay =
-        assetBalance && typeof assetBalance.gt === "function" && assetBalance.gt(0) && status !== 1 ? (
+        safeGt(assetBalance) && status !== 1 ? (
           <div className="token-container-outer">
             <span className="hidden-mobile">
               <div className="token-container">
@@ -187,7 +193,7 @@ export const getVaultColumns = (showStats: boolean): Column<VaultData>[] => [
       return (
         <div>
           <div className="token-cell">
-            {assetBalance && assetBalance.gt(0) && <>{assetBalanceDisplay}</>}
+            {safeGt(assetBalance) && <>{assetBalanceDisplay}</>}
           </div>
         </div>
       );
@@ -196,8 +202,10 @@ export const getVaultColumns = (showStats: boolean): Column<VaultData>[] => [
   {
     Header: <div style={{ margin: "0px 0px 0px 30px" }}>Your Tickets</div>,
     id: "tickets",
-    accessor: (row) =>
-      row.vaultBalance?.gt(0) ? row.formattedVaultBalance : 0,
+    accessor: (row) => {
+      const vb = row.vaultBalance;
+      return safeGt(vb) ? parseFloat(row.formattedVaultBalance || "0") : 0;
+    },
     Cell: ({ value, row }: any) => {
         let display =
         value > 0 ? (

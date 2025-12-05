@@ -127,7 +127,7 @@ const WinsListModal: React.FC<WinsModalProps> = ({
   useEffect(() => {
     const fetchVaults = async () => {
       const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 1200);
+      const timer = setTimeout(() => controller.abort(), 800);
       try {
         const response = await fetch("https://poolexplorer.xyz/vaults", {
           signal: controller.signal,

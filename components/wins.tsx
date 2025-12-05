@@ -165,7 +165,7 @@ const {overview} = useOverview()
   useEffect(() => {
     const fetchWins = async () => {
       const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 1200);
+      const timer = setTimeout(() => controller.abort(), 800);
       try {
         const fetchPlayer = await fetch(
           "https://poolexplorer.xyz/player-claims?address=" + addressProp,

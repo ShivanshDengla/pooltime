@@ -53,6 +53,7 @@ interface OverviewContextProps {
   currency: Currency;
   toggleCurrency: () => void;
   isLoading: boolean;
+  offline: boolean;
 }
 
 const OverviewContext = createContext<OverviewContextProps | null>(null);
@@ -61,6 +62,7 @@ export const OverviewProvider: React.FC<OverviewProviderProps> = ({ children }) 
   const [overview, setOverview] = useState<Overview | null>(null);
   const [currency, setCurrency] = useState<Currency>('USD');
   const [isLoading, setIsLoading] = useState(true);
+  const [offline, setOffline] = useState(false);
 
   useEffect(() => {
     const fetchOverview = async () => {
@@ -76,6 +78,7 @@ export const OverviewProvider: React.FC<OverviewProviderProps> = ({ children }) 
         }
         const overviewReceived = await overviewFetch.json();
         setOverview(overviewReceived);
+        setOffline(false);
       } catch (error: any) {
         if (error?.name !== 'AbortError') {
           console.error('Failed to fetch overview:', error);
@@ -88,6 +91,7 @@ export const OverviewProvider: React.FC<OverviewProviderProps> = ({ children }) 
             assets: {},
           },
         });
+        setOffline(true);
       } finally {
         clearTimeout(timer);
         setIsLoading(false);
@@ -102,7 +106,7 @@ export const OverviewProvider: React.FC<OverviewProviderProps> = ({ children }) 
   };
 
   return (
-    <OverviewContext.Provider value={{ overview, currency, toggleCurrency, isLoading }}>
+    <OverviewContext.Provider value={{ overview, currency, toggleCurrency, isLoading, offline }}>
       {children}
     </OverviewContext.Provider>
   );

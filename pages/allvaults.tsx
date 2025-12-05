@@ -172,7 +172,7 @@ const VaultYieldTooltip: React.FC<YieldTooltipProps> = ({
 };
 
 function AllVaults() {
-  const { overview } = useOverview();
+  const { overview, offline } = useOverview();
   const [showStats, setShowStats] = useState(() => {
     if (typeof window !== "undefined") {
       return window.innerWidth < 501;
@@ -387,8 +387,8 @@ function AllVaults() {
 
   useEffect(() => {
     const fetchData = async () => {
-      // If overview is still null, immediately fall back to static data
-      if (overview === null) {
+      // If overview is still null OR offline, immediately fall back to static data
+      if (overview === null || offline) {
         setAllVaults(vaultsAPIFormatted as any);
         setFilteredVaults(vaultsAPIFormatted as any);
         setIsDataLoading(false);
@@ -402,15 +402,20 @@ function AllVaults() {
         let prices = { geckos: {}, assets: {} };
         let vaults: VaultData[] = vaultsAPIFormatted as any; // Default to static data
 
-        try {
-          // Fetch vaults only (prices come from context)
-          vaultsResponse = await fetch(`https://poolexplorer.xyz/vaults`);
-          if (!vaultsResponse.ok) {
-            throw new Error(`HTTP ${vaultsResponse.status}`);
+        if (!offline) {
+          try {
+            const controller = new AbortController();
+            const timer = setTimeout(() => controller.abort(), 800);
+            vaultsResponse = await fetch(`https://poolexplorer.xyz/vaults`, {
+              signal: controller.signal,
+            });
+            clearTimeout(timer);
+            if (!vaultsResponse.ok) {
+              throw new Error(`HTTP ${vaultsResponse.status}`);
+            }
+          } catch (error) {
+            vaultsResponse = null; // Ensure it's null on error
           }
-        } catch (error) {
-          console.error("Error during API fetch:", error);
-          vaultsResponse = null; // Ensure it's null on error
         }
 
         // Use prices from context overview, or empty object as fallback

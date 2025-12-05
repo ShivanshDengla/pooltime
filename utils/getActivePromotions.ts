@@ -4,7 +4,7 @@
 
 async function fetchPromotions(meta:boolean): Promise<any> {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 1200);
+  const timer = setTimeout(() => controller.abort(), 800);
   try {
     const fetchUrl = meta ? "https://poolexplorer.xyz/metatwabrewards" : "https://poolexplorer.xyz/twabrewards";
     const response = await fetch(fetchUrl, { signal: controller.signal });
