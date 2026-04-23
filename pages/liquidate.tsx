@@ -94,16 +94,275 @@ const dgroup = (label: string, fn: () => void) => {
   try { fn(); } finally { console.groupEnd(); }
 };
 
+// ---------- Pair Selector ----------
+type PairSelectorItem = {
+  chainName: string;
+  chainId: number;
+  vaultName: string;
+  assetSymbol: string;
+  vaultAddress: string;
+  liquidationPair: string;
+  isBooster: boolean;
+};
+
+const PairSelector: React.FC<{
+  availablePairs: PairSelectorItem[];
+  defaultChainId?: number;
+  invalidReceived?: string;
+  onSelect: (chainId: number, pairAddress: string) => void;
+}> = ({ availablePairs, defaultChainId, invalidReceived, onSelect }) => {
+  const chains = useMemo(() => {
+    const byId = new Map<number, string>();
+    availablePairs.forEach((p) => byId.set(p.chainId, p.chainName));
+    return Array.from(byId.entries()).map(([id, name]) => ({ id, name }));
+  }, [availablePairs]);
+
+  const initialChain =
+    defaultChainId && chains.some((c) => c.id === defaultChainId)
+      ? defaultChainId
+      : chains[0]?.id;
+
+  const [chainIdSel, setChainIdSel] = useState<number | undefined>(initialChain);
+  const [pairSel, setPairSel] = useState<string>("");
+  const [manualPair, setManualPair] = useState<string>("");
+
+  useEffect(() => {
+    setPairSel("");
+  }, [chainIdSel]);
+
+  const pairsForChain = useMemo(
+    () => availablePairs.filter((p) => p.chainId === chainIdSel),
+    [availablePairs, chainIdSel]
+  );
+
+  const manualPairValid =
+    !!manualPair && ethers.utils.isAddress(manualPair);
+
+  const canGo =
+    !!chainIdSel &&
+    (ethers.utils.isAddress(pairSel) || manualPairValid);
+
+  const handleGo = () => {
+    if (!chainIdSel) return;
+    const chosen = ethers.utils.isAddress(pairSel) ? pairSel : manualPair;
+    if (!ethers.utils.isAddress(chosen)) return;
+    onSelect(chainIdSel, chosen);
+  };
+
+  return (
+    <div style={{ padding: 16 }}>
+      <div
+        className="vault-data"
+        style={{ textAlign: "center", marginBottom: 16 }}
+      >
+        Choose a liquidation pair
+      </div>
+
+      {invalidReceived ? (
+        <div
+          className="small-font"
+          style={{
+            textAlign: "center",
+            marginBottom: 12,
+            color: "#c0392b",
+          }}
+        >
+          Invalid pair in URL: {invalidReceived}
+        </div>
+      ) : null}
+
+      <div className="data-row">
+        <span className="vault-label">Chain</span>
+        <span className="vault-data">
+          <select
+            value={chainIdSel ?? ""}
+            onChange={(e) => setChainIdSel(Number(e.target.value) || undefined)}
+            style={{
+              padding: "6px 10px",
+              borderRadius: 8,
+              border: "1px solid #c7d6df",
+              background: "white",
+              color: "#173d5a",
+              fontSize: 14,
+              minWidth: 180,
+            }}
+          >
+            {chains.length === 0 ? (
+              <option value="">No chains available</option>
+            ) : (
+              chains.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name} ({c.id})
+                </option>
+              ))
+            )}
+          </select>
+        </span>
+      </div>
+
+      <div className="data-row">
+        <span className="vault-label">Pair</span>
+        <span className="vault-data">
+          <select
+            value={pairSel}
+            onChange={(e) => {
+              setPairSel(e.target.value);
+              if (e.target.value) setManualPair("");
+            }}
+            style={{
+              padding: "6px 10px",
+              borderRadius: 8,
+              border: "1px solid #c7d6df",
+              background: "white",
+              color: "#173d5a",
+              fontSize: 14,
+              minWidth: 280,
+              maxWidth: "100%",
+            }}
+          >
+            <option value="">— Select a pair —</option>
+            {pairsForChain.map((p) => (
+              <option key={p.liquidationPair} value={p.liquidationPair}>
+                {p.isBooster ? "⚡ " : ""}
+                {p.vaultName}
+                {p.assetSymbol ? ` · ${p.assetSymbol}` : ""} ·{" "}
+                {p.liquidationPair.slice(0, 6)}…{p.liquidationPair.slice(-4)}
+              </option>
+            ))}
+          </select>
+        </span>
+      </div>
+
+      <div className="data-row">
+        <span className="vault-label">Or paste address</span>
+        <span className="vault-data">
+          <input
+            type="text"
+            placeholder="0x… liquidation pair"
+            value={manualPair}
+            onChange={(e) => {
+              setManualPair(e.target.value.trim());
+              if (e.target.value) setPairSel("");
+            }}
+            style={{
+              padding: "6px 10px",
+              borderRadius: 8,
+              border: "1px solid #c7d6df",
+              background: "white",
+              color: "#173d5a",
+              fontSize: 14,
+              width: 320,
+              maxWidth: "100%",
+            }}
+          />
+        </span>
+      </div>
+
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "center",
+          marginTop: 16,
+        }}
+      >
+        <button
+          className={`vault-button${canGo ? "" : " no-cursor"}`}
+          disabled={!canGo}
+          onClick={handleGo}
+          style={{
+            textTransform: "uppercase",
+            minWidth: 200,
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          LOAD PAIR
+        </button>
+      </div>
+
+      <div
+        className="small-font"
+        style={{ textAlign: "center", marginTop: 12, opacity: 0.8 }}
+      >
+        Tip: you can also browse all pairs on the{" "}
+        <Link href="/liquidationPairs">
+          <span style={{ textDecoration: "underline", cursor: "pointer" }}>
+            Liquidation Pairs
+          </span>
+        </Link>{" "}
+        page.
+      </div>
+    </div>
+  );
+};
+
 // ---------- Component ----------
 const LiquidatePage: React.FC = () => {
   const router = useRouter();
   const { overview } = useOverview();
 
   // /liquidate?chain=100&pair=0x...
-  const { chain: chainParamRaw, pair: pairParamRaw, address: addressParam } =
-    router.query as { chain?: string; pair?: string; address?: string };
+  const firstQueryParam = (v: string | string[] | undefined) =>
+    Array.isArray(v) ? v[0] : v;
+  const chainParamRaw = firstQueryParam(router.query.chain as string | string[] | undefined);
+  const pairParamRaw = firstQueryParam(router.query.pair as string | string[] | undefined);
+  const addressParam = firstQueryParam(router.query.address as string | string[] | undefined);
   const pairParam =
     (pairParamRaw as string) || (addressParam as string) || undefined;
+  const pairParamIsValid = !!pairParam && ethers.utils.isAddress(pairParam);
+
+  // ----- available pairs from constants (for in-page selector) -----
+  type AvailablePair = {
+    chainName: string;
+    chainId: number;
+    vaultName: string;
+    assetSymbol: string;
+    vaultAddress: string;
+    liquidationPair: string;
+    isBooster: boolean;
+  };
+  const availablePairs = useMemo<AvailablePair[]>(() => {
+    const out: AvailablePair[] = [];
+    for (const chainName of Object.keys(ADDRESS)) {
+      const cfg = ADDRESS[chainName];
+      if (!cfg) continue;
+      const add = (list: any[] | undefined, isBooster: boolean) => {
+        (list || []).forEach((v) => {
+          const lp = v?.LIQUIDATIONPAIR;
+          if (!lp || !ethers.utils.isAddress(lp)) return;
+          if (lp === ethers.constants.AddressZero) return;
+          out.push({
+            chainName,
+            chainId: cfg.CHAINID,
+            vaultName: v.NAME || v.SYMBOL || lp,
+            assetSymbol: v.ASSETSYMBOL || v.SYMBOL || "",
+            vaultAddress: v.VAULT,
+            liquidationPair: lp,
+            isBooster,
+          });
+        });
+      };
+      add(cfg.VAULTS, false);
+      add(cfg.BOOSTERS, true);
+    }
+    return out.sort((a, b) =>
+      a.chainName === b.chainName
+        ? a.vaultName.localeCompare(b.vaultName)
+        : a.chainName.localeCompare(b.chainName)
+    );
+  }, []);
+
+  const selectPair = useCallback(
+    (chainIdSel: number, pairAddress: string) => {
+      router.replace(
+        { pathname: router.pathname, query: { chain: chainIdSel, pair: pairAddress } },
+        undefined,
+        { shallow: true }
+      );
+    },
+    [router]
+  );
 
   // wallet + batching
   const { address, chainId } = useAccount();
@@ -132,27 +391,54 @@ const LiquidatePage: React.FC = () => {
     return !Number.isNaN(maybeNum) && maybeNum > 0 ? maybeNum : undefined;
   }, [chainParamRaw]);
 
+  const chainNameFromWallet = useMemo(() => {
+    if (chainId == null) return undefined;
+    return GetChainName(chainId);
+  }, [chainId]);
+
+  const resolvedChainName = useMemo(
+    () => chainNameFromUrl || chainNameFromWallet,
+    [chainNameFromUrl, chainNameFromWallet]
+  );
+
   const provider = useMemo(() => {
-    if (!chainNameFromUrl) return undefined;
-    return PROVIDERS[chainNameFromUrl];
-  }, [chainNameFromUrl]);
+    if (!resolvedChainName) return undefined;
+    return PROVIDERS[resolvedChainName];
+  }, [resolvedChainName]);
 
   const routerAddress = useMemo(() => {
-    if (!chainNameFromUrl) return undefined;
+    if (!resolvedChainName) return undefined;
     try {
-      return ADDRESS[chainNameFromUrl].LIQUIDATIONROUTER as string;
+      return ADDRESS[resolvedChainName].LIQUIDATIONROUTER as string;
     } catch {
       return undefined;
     }
-  }, [chainNameFromUrl]);
+  }, [resolvedChainName]);
 
   // log initial wiring
   useEffect(() => {
     console.groupCollapsed("Liquidation:init");
     console.log("query", { chainParamRaw, pairParamRaw, addressParam });
-    console.log("derived", { chainNameFromUrl, pairParam, routerAddress, targetChainIdFromUrl });
+    console.log("derived", {
+      chainNameFromUrl,
+      chainNameFromWallet,
+      resolvedChainName,
+      pairParam,
+      routerAddress,
+      targetChainIdFromUrl,
+    });
     console.groupEnd();
-  }, [chainParamRaw, pairParamRaw, addressParam, chainNameFromUrl, pairParam, routerAddress, targetChainIdFromUrl]);
+  }, [
+    chainParamRaw,
+    pairParamRaw,
+    addressParam,
+    chainNameFromUrl,
+    chainNameFromWallet,
+    resolvedChainName,
+    pairParam,
+    routerAddress,
+    targetChainIdFromUrl,
+  ]);
 
   // state
   const [pairInfo, setPairInfo] = useState<PairInfo | null>(null);
@@ -225,7 +511,7 @@ const LiquidatePage: React.FC = () => {
   // -------- load pair: tokens, maxOut, source (parallel) --------
   useEffect(() => {
     const loadPair = async () => {
-      if (!provider || !pairParam) return;
+      if (!provider || !pairParamIsValid) return;
       try {
         const pair = new ethers.Contract(
           pairParam,
@@ -275,7 +561,7 @@ const LiquidatePage: React.FC = () => {
       }
     };
     loadPair();
-  }, [provider, pairParam]);
+  }, [provider, pairParam, pairParamIsValid]);
 
   // -------- VAULT.asset() (tokenOut is expected vault share) --------
   useEffect(() => {
@@ -299,11 +585,16 @@ const LiquidatePage: React.FC = () => {
 
   // -------- prices (from context overview) --------
   const loadPrices = useCallback(() => {
-    if (!pairInfo || !chainNameFromUrl || !overview?.prices) return;
+    if (!pairInfo || !resolvedChainName || !overview?.prices) return;
     
-    const pIn = overview.prices.assets?.[chainNameFromUrl]?.[pairInfo.tokenIn.address.toLowerCase()] || 0;
+    const pIn =
+      overview.prices.assets?.[resolvedChainName]?.[
+        pairInfo.tokenIn.address.toLowerCase()
+      ] || 0;
     const pOut = underlyingAddr 
-      ? overview.prices.assets?.[chainNameFromUrl]?.[underlyingAddr.toLowerCase()] || 0
+      ? overview.prices.assets?.[resolvedChainName]?.[
+          underlyingAddr.toLowerCase()
+        ] || 0
       : 0;
 
     dgroup("Prices loaded from context", () => {
@@ -315,7 +606,7 @@ const LiquidatePage: React.FC = () => {
 
     setPriceInUSD(pIn || 0);
     setPriceOutUSD(pOut || 0);
-  }, [pairInfo, chainNameFromUrl, underlyingAddr, overview?.prices]);
+  }, [pairInfo, resolvedChainName, underlyingAddr, overview?.prices]);
 
   useEffect(() => {
     loadPrices();
@@ -444,9 +735,9 @@ const LiquidatePage: React.FC = () => {
 
   // flags for action button
   const onRightChain = useMemo(() => {
-    if (!chainNameFromUrl || chainId == null) return true;
-    return GetChainName(chainId) === chainNameFromUrl;
-  }, [chainId, chainNameFromUrl]);
+    if (!targetChainIdFromUrl || chainId == null) return true;
+    return chainId === targetChainIdFromUrl;
+  }, [chainId, targetChainIdFromUrl]);
 
   const hasWallet = !!address;
   const hasRouter = !!routerAddress;
@@ -797,11 +1088,57 @@ const LiquidatePage: React.FC = () => {
           <div className="vault-container">
             <div className="vault-content">
               {!pairInfo ? (
-                <div style={{ textAlign: "center", padding: 40 }}>
-                  <div className="spinner-large" />
-                </div>
+                !router.isReady ? (
+                  <div style={{ textAlign: "center", padding: 40 }}>
+                    <div className="spinner-large" />
+                  </div>
+                ) : !pairParamIsValid ? (
+                  <PairSelector
+                    availablePairs={availablePairs}
+                    defaultChainId={targetChainIdFromUrl || chainId}
+                    invalidReceived={!!pairParam && !pairParamIsValid ? pairParam : undefined}
+                    onSelect={selectPair}
+                  />
+                ) : (
+                  <div style={{ textAlign: "center", padding: 40 }}>
+                    <div className="spinner-large" />
+                    <div className="small-font" style={{ marginTop: 12, opacity: 0.8 }}>
+                      Loading pair…
+                    </div>
+                  </div>
+                )
               ) : (
                 <>
+                  {/* Change-pair control */}
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "flex-end",
+                      marginBottom: 8,
+                    }}
+                  >
+                    <button
+                      className="small-font"
+                      onClick={() =>
+                        router.replace(
+                          { pathname: router.pathname, query: {} },
+                          undefined,
+                          { shallow: true }
+                        )
+                      }
+                      style={{
+                        background: "transparent",
+                        border: "none",
+                        color: "#E1F5F9",
+                        cursor: "pointer",
+                        textDecoration: "underline",
+                        padding: 0,
+                      }}
+                    >
+                      change pair
+                    </button>
+                  </div>
+
                   <div className="data-row">
                     <span className="vault-label">Pair</span>
                     <span className="vault-data small-font">

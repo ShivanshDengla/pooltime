@@ -49,9 +49,6 @@ const Layout = ({ children }: LayoutProps) => {
         <title>PoolTogether PoolTime.App</title>
         <meta content="Your all-in-one front end for PoolTogether V5." name="description" />
         <link rel="icon" href="/favicon.ico" sizes="any" />
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@900&display=swap" rel="stylesheet" />
       </Head>
       <div style={{ marginTop: "12px" }}>
         <main>

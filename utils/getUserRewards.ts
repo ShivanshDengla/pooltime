@@ -198,7 +198,6 @@ export async function GetUsersAwards(
     // const rewardArray = metaRewardsData[index];
     // const rewardAmount = rewardArray.reduce((sum, r) => sum.add(r), ethers.BigNumber.from(0));    
     const rewardAmount = metaRewardsData[index] as any;
-    console.log("Reward amount",rewardAmount)
     if (rewardAmount.gt(0)) {
       userRewards.completed.push({
         completedEpochs: promo.completedEpochs,

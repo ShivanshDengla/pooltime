@@ -113,7 +113,11 @@ export const RewardsProvider: React.FC<RewardsProviderProps> = ({ children }) =>
       const vaults = vaultsCache.length > 0 ? vaultsCache : vaultsAPIFormatted as any;
 
       // Fetch balances for the address to determine ticket holdings
-      const grouped = groupVaultsByChain(vaults);
+      const validVaults = vaults.filter(
+        (vault: any) =>
+          typeof vault?.vault === "string" && ethers.utils.isAddress(vault.vault)
+      );
+      const grouped = groupVaultsByChain(validVaults);
       const balanceResults = await Promise.all(
         grouped.map(async ({ chainId, vaults: chainVaults }) => {
           const vaultAddresses = chainVaults.map((vault) => vault.vault);
@@ -157,7 +161,7 @@ export const RewardsProvider: React.FC<RewardsProviderProps> = ({ children }) =>
         setRewardsData(prev => ({
           ...prev,
           [address]: {
-            vaults,
+            vaults: validVaults,
             ticketVaults: [],
             promotionsByVault: {},
             claimableByVault: {},
@@ -170,7 +174,9 @@ export const RewardsProvider: React.FC<RewardsProviderProps> = ({ children }) =>
       }
 
       // Fetch active promotions and claimable rewards
-      const vaultAddresses = ticketVaults.map((v) => v.vault);
+      const vaultAddresses = ticketVaults
+        .map((v) => v.vault)
+        .filter((vaultAddr) => ethers.utils.isAddress(vaultAddr));
       const promosResult = await GetActivePromotionsForVaults(
         vaultAddresses,
         true,
@@ -260,7 +266,7 @@ export const RewardsProvider: React.FC<RewardsProviderProps> = ({ children }) =>
       setRewardsData(prev => ({
         ...prev,
         [address]: {
-          vaults,
+          vaults: validVaults,
           ticketVaults,
           promotionsByVault: promos || {},
           claimableByVault: claimables,
