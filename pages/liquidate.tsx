@@ -286,7 +286,7 @@ const PairSelector: React.FC<{
         style={{ textAlign: "center", marginTop: 12, opacity: 0.8 }}
       >
         Tip: you can also browse all pairs on the{" "}
-        <Link href="/liquidationPairs">
+        <Link href="/liquidator">
           <span style={{ textDecoration: "underline", cursor: "pointer" }}>
             Liquidation Pairs
           </span>
@@ -591,11 +591,11 @@ const LiquidatePage: React.FC = () => {
       overview.prices.assets?.[resolvedChainName]?.[
         pairInfo.tokenIn.address.toLowerCase()
       ] || 0;
-    const pOut = underlyingAddr 
-      ? overview.prices.assets?.[resolvedChainName]?.[
-          underlyingAddr.toLowerCase()
-        ] || 0
-      : 0;
+    // If tokenOut is a vault share, price the underlying asset.
+    // If tokenOut is a plain ERC20 (no asset()), fall back to tokenOut itself.
+    const outPriceAddress = (underlyingAddr || pairInfo.tokenOut.address).toLowerCase();
+    const pOut =
+      overview.prices.assets?.[resolvedChainName]?.[outPriceAddress] || 0;
 
     dgroup("Prices loaded from context", () => {
       dlog("tokenIn", pairInfo?.tokenIn.address);
