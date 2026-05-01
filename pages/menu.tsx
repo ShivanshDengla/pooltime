@@ -48,6 +48,7 @@ export const Menu = () => {
         { label: "Draws", path: "/winners", show: true },
         { label: "Leaderboard", path: "/leaderboard", show: true },
         { label: "Poolers", path: "/poolers", show: true },
+        { label: "Claimer Check", path: "/claimercheck", show: true },
       ],
     },
     {
