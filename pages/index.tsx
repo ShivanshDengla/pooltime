@@ -34,13 +34,32 @@ const Layout = ({ children }: LayoutProps) => {
 
   return (
     <div
-    style={{
-      padding: "0 1rem",
-      display: "flex",
-      flexDirection: "column",
-      minHeight: "100vh",
-    }}
-  >      <Head>
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        minHeight: "100vh",
+      }}
+    >
+      <a
+        href="https://pooly.eth.limo"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="migration-banner"
+      >
+        <span className="migration-banner-text">
+          We&apos;re migrating over to IPFS, find us at{" "}
+          <span className="migration-banner-link">pooly.eth.limo</span>
+        </span>
+      </a>
+      <div
+        style={{
+          padding: "0 1rem",
+          display: "flex",
+          flexDirection: "column",
+          flex: 1,
+        }}
+      >
+      <Head>
         <meta
           name="viewport"
           content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"
@@ -54,7 +73,7 @@ const Layout = ({ children }: LayoutProps) => {
         <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@900&display=swap" rel="stylesheet" />
       </Head>
       <div style={{ marginTop: "12px" }}>
-        <main>
+        <main className="layout-main">
           <Menu />
           <div className="wallet-connect-button">
           {/* <div style={{ display: 'flex', gap: 12 }}> */}
@@ -161,6 +180,7 @@ const Layout = ({ children }: LayoutProps) => {
     </span> */}
   </div>
 </div>
+      </div>
     </div>
   );
 };

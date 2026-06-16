@@ -1,3 +1,54 @@
+.migration-banner {
+  display: block;
+  width: 100%;
+  margin: 0;
+  padding: 8px 16px;
+  background-color: rgba(255, 255, 255, 0.06);
+  border: none;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 0;
+  color: rgba(255, 255, 255, 0.75);
+  text-align: center;
+  text-decoration: none;
+  box-sizing: border-box;
+  flex-shrink: 0;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.migration-banner:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+  border-bottom-color: rgba(255, 255, 255, 0.2);
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.migration-banner-text {
+  display: block;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.migration-banner-link {
+  font-weight: 600;
+  color: #c4b8f0;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  word-break: break-word;
+}
+
+.migration-banner:hover .migration-banner-link {
+  color: #d9d0f7;
+}
+
+.layout-main {
+  position: relative;
+}
+
+@media (min-width: 501px) {
+  .migration-banner-text {
+    font-size: 13px;
+  }
+}
+
 html,
 body {
   /* background-color: #1f3c55; */
